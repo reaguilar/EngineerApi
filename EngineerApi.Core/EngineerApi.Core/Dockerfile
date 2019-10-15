@@ -1,23 +1,18 @@
-#Depending on the operating system of the host machines(s) that will build or run the containers, the image specified in the FROM statement may need to be changed.
-#For more information, please see https://aka.ms/containercompat
+# Get Base Image (Full .NET Core SDK)
+FROM mcr.microsoft.com/dotnet/core/sdk:2.2 AS build-env
+WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/core/aspnet:2.2-nanoserver-1903 AS base
+# Copy csproj and restore
+COPY *.csproj ./
+RUN dotnet restore
+
+# Copy everything else and build
+COPY . ./
+RUN dotnet publish -c Release -o out
+
+# Generate runtime image
+FROM mcr.microsoft.com/dotnet/core/aspnet:2.2
 WORKDIR /app
 EXPOSE 80
-EXPOSE 443
-
-FROM mcr.microsoft.com/dotnet/core/sdk:2.2-nanoserver-1903 AS build
-WORKDIR /src
-COPY ["EngineerApi.Core/EngineerApi.Core.csproj", "EngineerApi.Core/"]
-RUN dotnet restore "EngineerApi.Core/EngineerApi.Core.csproj"
-COPY . .
-WORKDIR "/src/EngineerApi.Core"
-RUN dotnet build "EngineerApi.Core.csproj" -c Release -o /app/build
-
-FROM build AS publish
-RUN dotnet publish "EngineerApi.Core.csproj" -c Release -o /app/publish
-
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build-env /app/out .
 ENTRYPOINT ["dotnet", "EngineerApi.Core.dll"]
